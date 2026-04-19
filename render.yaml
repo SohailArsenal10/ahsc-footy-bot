@@ -15,8 +15,8 @@ services:
       - key: TWILIO_AUTH_TOKEN
         sync: false
       - key: BOT_TRIGGERS
-        value: "@footybot"
+        value: "@xxxx"
       - key: TWILIO_WHATSAPP_FROM
-        value: whatsapp:+14155238886
+        value: whatsapp:+xxxxx
       - key: TOURNAMENT_URL
-        value: https://challenge.place/c/68e25e0e0cd837a479b79cc6
+        value: ""
