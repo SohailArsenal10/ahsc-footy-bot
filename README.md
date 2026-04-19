@@ -79,9 +79,9 @@ cp .env.example .env
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
 WHATSAPP_TOKEN=EAAxxxxx...
-WHATSAPP_PHONE_ID=1234567890
-VERIFY_TOKEN=ahsc_footy_bot_2025
-TOURNAMENT_URL=https://challenge.place/c/68e25e0e0cd837a479b79cc6
+WHATSAPP_PHONE_ID=1234xxxxxx
+VERIFY_TOKEN=xxxx
+TOURNAMENT_URL=""
 ```
 
 ### Step 4 — Test locally
