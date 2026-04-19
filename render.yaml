@@ -10,11 +10,11 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: WHATSAPP_TOKEN
+      - key: TWILIO_ACCOUNT_SID
         sync: false
-      - key: WHATSAPP_PHONE_ID
+      - key: TWILIO_AUTH_TOKEN
         sync: false
-      - key: VERIFY_TOKEN
-        value: ahsc_footy_bot_2025
+      - key: TWILIO_WHATSAPP_FROM
+        value: whatsapp:+xxxxxx
       - key: TOURNAMENT_URL
-        value: https://challenge.place/c/68e25e0e0cd837a479b79cc6
+        value: ""
