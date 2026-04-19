@@ -1,16 +1,20 @@
 """
 AHSC Weekly Footy League - WhatsApp AI Bot
 FastAPI webhook server using Twilio WhatsApp Sandbox
-(Drop-in replacement for the Meta Cloud API version)
+
+Supports:
+- Direct (1-to-1) messages     → always responds
+- Group messages                → only responds when bot is mentioned
+                                  e.g. "@footybot who's top of the table?"
 """
 
 import os
 import logging
-from fastapi import FastAPI, Request, Response, Form
+import re
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from twilio.rest import Client
-from twilio.request_validator import RequestValidator
 
 from bot.claude_agent import ClaudeAgent
 from scraper.challenge_scraper import ChallengeScraper
@@ -21,54 +25,118 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AHSC Footy Bot — Twilio")
 
-# Initialise shared instances
+# ── Config ────────────────────────────────────────────────────────────────────
+
+# The trigger keyword(s) the bot listens for in group chats.
+# Case-insensitive. Add aliases if you want e.g. ["@footybot", "@footy", "@bot"]
+BOT_TRIGGERS = [t.lower() for t in os.getenv("BOT_TRIGGERS", "@footybot").split(",")]
+
+TWILIO_ACCOUNT_SID   = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN    = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
+
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+# ── Shared instances ──────────────────────────────────────────────────────────
 scraper = ChallengeScraper(
     tournament_url=os.getenv("TOURNAMENT_URL", "https://challenge.place/c/68e25e0e0cd837a479b79cc6")
 )
 agent = ClaudeAgent(scraper=scraper)
 
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN  = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")  # Twilio sandbox number
 
-twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+# ── Webhook ───────────────────────────────────────────────────────────────────
 
-
-# ── Incoming WhatsApp messages from Twilio ────────────────────────────────────
 @app.post("/webhook")
 async def receive_message(
     request: Request,
-    From: str = Form(...),       # sender's WhatsApp number  e.g. whatsapp:+919876543210
-    Body: str = Form(...),       # message text
-    NumMedia: str = Form("0"),   # number of media attachments
+    From: str        = Form(...),   # sender  e.g. whatsapp:+60123456789
+    To: str          = Form(...),   # bot number
+    Body: str        = Form(""),    # message text
+    NumMedia: str    = Form("0"),
+    WaGroupId: str   = Form(""),    # non-empty when message is from a group
+    ProfileName: str = Form(""),    # sender's WhatsApp display name
 ):
-    logger.info(f"Message from {From}: {Body}")
+    body_text   = Body.strip()
+    is_group    = bool(WaGroupId)
+    sender_name = ProfileName or "Player"
 
-    # Ignore empty messages or media-only messages
-    if not Body.strip():
+    logger.info(f"{'[GROUP]' if is_group else '[DM]'} {From} → {body_text!r}")
+
+    # ── Ignore empty / media-only messages ───────────────────────────────────
+    if not body_text:
         return PlainTextResponse("", status_code=200)
 
+    # ── Group message logic ───────────────────────────────────────────────────
+    if is_group:
+        trigger_used = _find_trigger(body_text)
+        if not trigger_used:
+            # Bot not mentioned — stay silent
+            logger.info("Group message — bot not mentioned, ignoring.")
+            return PlainTextResponse("", status_code=200)
+
+        # Strip the trigger keyword from the question before sending to Claude
+        question = _strip_trigger(body_text, trigger_used).strip()
+        if not question:
+            # Someone just typed "@footybot" with nothing after it
+            question = "Give me a quick tournament summary"
+
+        reply_to = f"whatsapp:{WaGroupId}"   # reply to the group
+        # Prefix reply with sender's name so the group knows who triggered it
+        prefix = f"_{sender_name} asked:_\n"
+
+    # ── Direct message logic ──────────────────────────────────────────────────
+    else:
+        question = body_text
+        reply_to = From
+        prefix   = ""
+
+    logger.info(f"Question: {question!r} → replying to {reply_to}")
+
+    # ── Get AI answer ─────────────────────────────────────────────────────────
     try:
-        reply = await agent.answer(Body.strip())
+        answer = await agent.answer(question)
     except Exception as e:
         logger.error(f"Agent error: {e}")
-        reply = "⚠️ Sorry, couldn't fetch tournament data right now. Try again in a moment!"
+        answer = "⚠️ Couldn't fetch tournament data right now. Try again in a moment!"
 
-    # Send reply via Twilio
+    reply = f"{prefix}{answer}"
+
+    # ── Send reply ────────────────────────────────────────────────────────────
     twilio_client.messages.create(
         from_=TWILIO_WHATSAPP_FROM,
-        to=From,
+        to=reply_to,
         body=reply,
     )
 
-    # Twilio expects a 200 with empty TwiML or plain text
     return PlainTextResponse("", status_code=200)
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _find_trigger(text: str) -> str | None:
+    """Return the trigger keyword found in text, or None."""
+    lower = text.lower()
+    for trigger in BOT_TRIGGERS:
+        if trigger in lower:
+            return trigger
+    return None
+
+
+def _strip_trigger(text: str, trigger: str) -> str:
+    """Remove the trigger keyword from the message (case-insensitive)."""
+    return re.sub(re.escape(trigger), "", text, flags=re.IGNORECASE).strip()
+
+
 # ── Health check ──────────────────────────────────────────────────────────────
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "bot": "AHSC Footy Bot 🏆", "provider": "Twilio"}
+    return {
+        "status": "ok",
+        "bot": "AHSC Footy Bot 🏆",
+        "provider": "Twilio",
+        "triggers": BOT_TRIGGERS,
+    }
 
 
 if __name__ == "__main__":
