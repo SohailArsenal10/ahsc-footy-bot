@@ -16,8 +16,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
-from bot.claude_agent import ClaudeAgent
-from scraper.challenge_scraper import ChallengeScraper
+from claude_agent import ClaudeAgent
+from challenge_scraper import ChallengeScraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
