@@ -5,8 +5,7 @@ services:
     runtimeVersion: 3.12.9
     buildCommand: |
       pip install -r requirements.txt
-      playwright install chromium
-      playwright install-deps chromium
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+      playwright install chromium --with-deps
+    startCommand: playwright install chromium && uvicorn main:app --host 0.0.0.0 --port $PORT
     # All environment variables are managed directly in the Render dashboard
     # under Environment → Add Environment Variable
