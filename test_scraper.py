@@ -8,7 +8,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from scraper.challenge_scraper import ChallengeScraper
+from challenge_scraper import ChallengeScraper
 
 
 async def main():

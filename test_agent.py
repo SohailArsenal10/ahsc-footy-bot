@@ -11,8 +11,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from dotenv import load_dotenv
 load_dotenv()
 
-from scraper.challenge_scraper import ChallengeScraper
-from bot.claude_agent import ClaudeAgent
+from challenge_scraper import ChallengeScraper
+from claude_agent import ClaudeAgent
 
 
 SAMPLE_QUESTIONS = [

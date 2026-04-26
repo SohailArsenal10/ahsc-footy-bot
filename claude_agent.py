@@ -7,7 +7,7 @@ natural-language questions about the AHSC Weekly Footy League.
 import os
 import logging
 import httpx
-from scraper.challenge_scraper import ChallengeScraper
+from challenge_scraper import ChallengeScraper
 
 logger = logging.getLogger(__name__)
 
