@@ -2,6 +2,7 @@ services:
   - type: web
     name: ahsc-footy-bot
     runtime: python
+    runtimeVersion: 3.12.9
     buildCommand: |
       pip install -r requirements.txt
       playwright install chromium
