@@ -9,7 +9,7 @@ Uses Anthropic prompt caching to reduce cost and latency on repeated queries.
 import os
 import logging
 import httpx
-from scraper.challenge_scraper import ChallengeScraper
+from challenge_scraper import ChallengeScraper
 
 logger = logging.getLogger(__name__)
 
