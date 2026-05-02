@@ -16,8 +16,8 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
-from claude_agent import ClaudeAgent
-from challenge_scraper import ChallengeScraper
+from bot.claude_agent import ClaudeAgent
+from scraper.challenge_scraper import ChallengeScraper
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
@@ -114,6 +114,12 @@ async def receive_message(request: Request):
             question = body_text
             reply_to = from_number
             prefix   = ""
+
+        # ── Refresh command — clears scraper cache ────────────────────────────
+        if body_text.lower().strip() in ["refresh", "@footybot refresh"]:
+            scraper.invalidate_cache()
+            await _send_message(reply_to, "Cache cleared! Next query will fetch fresh data from challenge.place ✅")
+            return Response(status_code=200)
 
         # ── Mark message as read (shows blue ticks) ───────────────────────────
         await _mark_read(message["id"])

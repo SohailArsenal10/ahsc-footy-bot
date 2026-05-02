@@ -1,7 +1,6 @@
 """
 Scraper for challenge.place tournament pages.
 Uses plain httpx (no browser) since the site serves full HTML via SSR.
-Results are cached for CACHE_TTL seconds to avoid hammering the site.
 Memory footprint: ~5MB vs ~400MB with Playwright.
 """
 
@@ -13,7 +12,10 @@ from html.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
 
-CACHE_TTL = 300  # 5 minutes
+# Cache for 1 hour — fresh enough for a weekly league,
+# and avoids hammering challenge.place on every message.
+# Force a refresh anytime by messaging "@footybot refresh"
+CACHE_TTL = 604800  # 7 days in seconds
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -70,7 +72,16 @@ class ChallengeScraper:
         }
 
     def invalidate_cache(self):
+        """Force a fresh scrape on next request. Triggered by '@footybot refresh'."""
         self._cache.clear()
+        logger.info("Cache cleared - next request will scrape fresh data")
+
+    def cache_age_minutes(self) -> int:
+        """Returns age of oldest cache entry in minutes, or -1 if empty."""
+        if not self._cache:
+            return -1
+        oldest = min(ts for _, ts in self._cache.values())
+        return int((time.time() - oldest) / 60)
 
     # ── Cache wrapper ─────────────────────────────────────────────────────────
 
@@ -79,9 +90,9 @@ class ChallengeScraper:
         if key in self._cache:
             data, ts = self._cache[key]
             if now - ts < CACHE_TTL:
-                logger.info(f"Cache hit: {key}")
+                logger.info(f"Cache hit: {key} (age: {int((now-ts)/60)}min)")
                 return data
-        logger.info(f"Scraping: {key}")
+        logger.info(f"Scraping fresh: {key}")
         data = await fn()
         self._cache[key] = (data, now)
         return data
