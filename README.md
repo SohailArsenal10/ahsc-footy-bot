@@ -13,9 +13,9 @@ Meta WhatsApp Cloud API
      ↓  (POST to your webhook)
 FastAPI Server  (main.py)
      ↓
-ChallengeScraper  →  challenge.place  (Playwright headless browser)
+ChallengeScraper  →  challenge.place  (HTTP/httpx)
      ↓
-ClaudeAgent  →  Anthropic API  (claude-sonnet)
+ClaudeAgent  →  Anthropic API  (claude-haiku)
      ↓
 Reply sent back via WhatsApp Cloud API
 ```
@@ -27,13 +27,10 @@ Reply sent back via WhatsApp Cloud API
 ```
 whatsapp-soccer-bot/
 ├── main.py                    # FastAPI webhook server
-├── scraper/
-│   └── challenge_scraper.py   # Playwright scraper for challenge.place
-├── bot/
-│   └── claude_agent.py        # Claude AI agent
-├── tests/
-│   ├── test_scraper.py        # Test scraping locally
-│   └── test_agent.py          # Test Claude Q&A locally
+├── challenge_scraper.py       # HTTP scraper for challenge.place
+├── claude_agent.py            # Claude AI agent
+├── test_scraper.py            # Test scraping locally
+├── test_agent.py              # Test Claude Q&A locally
 ├── requirements.txt
 ├── render.yaml                # One-click Render deployment
 └── .env.example               # Environment variables template
@@ -49,8 +46,6 @@ whatsapp-soccer-bot/
 git clone <your-repo>
 cd whatsapp-soccer-bot
 pip install -r requirements.txt
-playwright install chromium
-playwright install-deps chromium
 ```
 
 ### Step 2 — Get your API keys
@@ -88,10 +83,10 @@ TOURNAMENT_URL=https://challenge.place/c/68e25e0e0cd837a479b79cc6
 
 ```bash
 # Test the scraper
-python tests/test_scraper.py
+python test_scraper.py
 
 # Test the AI agent (requires ANTHROPIC_API_KEY)
-python tests/test_agent.py
+python test_agent.py
 
 # Run the server locally
 uvicorn main:app --reload --port 8000
@@ -148,7 +143,9 @@ Bot: AHSC are 3rd with 5pts — 1W 2D 2L, GD -2. Come on lads! 💪
 
 ## ⚙️ Configuration Notes
 
-- **Cache TTL**: Scrape results are cached for 5 minutes (`CACHE_TTL` in `challenge_scraper.py`)
+- **Cache TTL**: Scrape results are cached for 7 days (`CACHE_TTL` in `challenge_scraper.py`) - force refresh with "@footybot refresh"
+- **Memory footprint**: ~5MB (uses httpx instead of Playwright)
+- **Model**: Claude Haiku (fastest + cheapest for WhatsApp bots)
 - **WhatsApp free tier**: 1,000 conversations/month free
 - **Render free tier**: Spins down after 15min inactivity (first message may be slow — ~30s cold start)
 - **To avoid cold starts**: Upgrade to Render Starter ($7/mo) or use Railway/Fly.io
@@ -159,10 +156,10 @@ Bot: AHSC are 3rd with 5pts — 1W 2D 2L, GD -2. Come on lads! 💪
 
 | Problem | Fix |
 |---|---|
-| Scraper returns empty data | The SPA may need longer to load — increase `wait_for_timeout` in scraper |
+| Scraper returns empty data | The site may be down or blocked — check tournament URL is accessible |
 | WhatsApp webhook not verifying | Check `VERIFY_TOKEN` matches exactly in `.env` and Meta console |
 | Claude not responding | Check `ANTHROPIC_API_KEY` is valid and has credit |
-| Render deploy fails | Make sure `playwright install chromium` runs in build command |
+| Render deploy fails | Ensure all dependencies in requirements.txt are installable |
 
 ---
 
