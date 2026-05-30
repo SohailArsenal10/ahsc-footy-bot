@@ -64,7 +64,8 @@ async def verify_webhook(request: Request):
 @app.post("/webhook")
 async def receive_message(request: Request):
     body = await request.json()
-    logger.info(f"Incoming payload: {body}")
+    # Log only metadata, never log the full payload (contains sensitive data)
+    logger.debug(f"Incoming webhook payload received")
 
     try:
         entry  = body["entry"][0]["changes"][0]["value"]

@@ -2,7 +2,16 @@ services:
   - type: web
     name: ahsc-footy-bot
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    runtimeVersion: 3.12.9
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium
+      playwright install-deps chromium
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    # All environment variables are managed directly in the Render dashboard
-    # under Environment → Add Environment Variable
+    # Environment variables required (set in Render dashboard):
+    # - WHATSAPP_TOKEN: Meta permanent access token
+    # - WHATSAPP_PHONE_ID: Meta Phone Number ID
+    # - VERIFY_TOKEN: Webhook verification token (default: ahsc_footy_bot_2025)
+    # - ANTHROPIC_API_KEY: Anthropic Claude API key
+    # - BOT_TRIGGERS: Comma-separated trigger keywords (default: @footybot)
+    # - TOURNAMENT_URL: Challenge.place tournament URL
