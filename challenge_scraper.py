@@ -1,6 +1,6 @@
 """
 Scraper for challenge.place tournament pages.
-Uses httpx for most pages (lightweight), Playwright only for player statistics
+Uses httpx for most pages (lightweight), Steel.dev cloud browser for player statistics
 (which requires clicking the PLAYER tab to load dynamic content).
 """
 
@@ -8,10 +8,18 @@ import asyncio
 import time
 import logging
 import httpx
+import os
 from html.parser import HTMLParser
 from playwright.async_api import async_playwright
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Steel.dev cloud browser connection
+STEEL_API_KEY = os.getenv("STEEL_API_KEY", "")
 
 # Cache for 1 hour — fresh enough for a weekly league,
 # and avoids hammering challenge.place on every message.
@@ -152,21 +160,29 @@ class ChallengeScraper:
         return _clean_content(text)
 
     async def _scrape_player_statistics(self) -> str:
-        """Scrape player-level statistics from statistics page using Playwright.
+        """Scrape player-level statistics from statistics page using Steel.dev cloud browser.
         
-        The PLAYER tab is loaded dynamically via JavaScript, so we need to:
+        The PLAYER tab is loaded dynamically via JavaScript, so we use Steel.dev's
+        remote browser to:
         1. Load the statistics page
         2. Click the PLAYER tab button
         3. Wait for player data to load
         4. Extract the player statistics
         """
+        if not STEEL_API_KEY:
+            logger.warning("STEEL_API_KEY not set, skipping player statistics")
+            return "[Player statistics unavailable - STEEL_API_KEY not configured]"
+        
         try:
+            # Connect to Steel.dev cloud browser via CDP
+            steel_url = f"wss://connect.steel.dev?apiKey={STEEL_API_KEY}"
+            
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.connect_over_cdp(steel_url)
                 page = await browser.new_page()
                 
                 try:
-                    # Load statistics page with lenient wait (domcontentloaded instead of networkidle)
+                    # Load statistics page
                     await page.goto(f"{self.base_url}/statistics", wait_until="domcontentloaded", timeout=15000)
                     
                     # Wait a bit for initial render
@@ -176,14 +192,13 @@ class ChallengeScraper:
                     player_tab = page.locator("text=Player").first
                     await player_tab.click()
                     
-                    # Wait for player data to load (look for player names)
+                    # Wait for player data to load
                     await page.wait_for_selector("text=Top scorers", timeout=10000)
                     
                     # Wait a bit for data to fully render
                     await page.wait_for_timeout(1000)
                     
                     # Click all "See all" buttons to expand all player lists
-                    # Keep clicking until no more "See all" buttons are found
                     max_attempts = 15
                     for attempt in range(max_attempts):
                         see_all_buttons = page.locator("text=See all")
@@ -193,7 +208,7 @@ class ChallengeScraper:
                         try:
                             button = see_all_buttons.first
                             await button.click(timeout=5000)
-                            await page.wait_for_timeout(1500)  # Wait longer for expansion and content to load
+                            await page.wait_for_timeout(1500)
                         except Exception as e:
                             logger.debug(f"Could not click See all button: {e}")
                             break
@@ -215,7 +230,7 @@ class ChallengeScraper:
                     await browser.close()
                     
         except Exception as e:
-            logger.error(f"Playwright scrape failed for player statistics: {e}")
+            logger.error(f"Steel.dev scrape failed for player statistics: {e}")
             return f"[Error scraping player statistics: {e}]"
 
     async def _scrape_competitors(self) -> str:
