@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AHSC Footy Bot — WhatsApp Cloud API")
 
+# Track processed message IDs to prevent duplicate processing (WhatsApp webhook retries)
+processed_message_ids = set()
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
 # The trigger keyword(s) the bot listens for in group chats.
@@ -75,10 +78,19 @@ async def receive_message(request: Request):
             return Response(status_code=200)
 
         message      = entry["messages"][0]
-        from_number  = message["from"]          # sender's phone number
+        message_id   = message["id"]              # WhatsApp message ID for deduplication
+        from_number  = message["from"]            # sender's phone number
         msg_type     = message.get("type")
         contacts     = entry.get("contacts", [{}])
         sender_name  = contacts[0].get("profile", {}).get("name", "Player")
+
+        # Deduplication: Skip if we've already processed this message
+        if message_id in processed_message_ids:
+            logger.info(f"Duplicate message {message_id}, skipping")
+            return Response(status_code=200)
+
+        # Mark as processed
+        processed_message_ids.add(message_id)
 
         # Extract group ID if present (group messages only)
         group_id = message.get("context", {}).get("group_id") or \
